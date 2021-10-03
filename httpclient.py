@@ -22,7 +22,7 @@ import sys
 import socket
 import re
 # you may use urllib to encode data appropriately
-from urllib.parse import urlparse
+import urllib.parse
 
 def help():
     print("httpclient.py [GET/POST] [URL]\n")
@@ -67,14 +67,82 @@ class HTTPClient(object):
                 done = not part
         return buffer.decode('utf-8')
 
-    def GET(self, url, args=None):
-        code = 500
+    def getResponseBody(self, data):
+        data = data.split("\n")
+
+        headerEndIndex = data.index('\r')
+        slice = data[headerEndIndex + 1 : len(data) - 1]
+        return "\n".join(slice)
+
+    '''
+        url encode args
+    '''
+    def prepareArgsForBody(self, args):
         body = ""
+        counter = 0
+
+        for key, value in args.items():
+            body += f'{urllib.parse.quote_plus(key)}={urllib.parse.quote_plus(value)}'
+            counter +=1
+            
+            # If there is more key-value pairs add separator            
+            if (counter != len(args)):
+                body += '&'
+        
+        return body
+
+
+    def GET(self, url, args=None):
+
+        parseResult = urllib.parse.urlparse(url)
+        port = parseResult.port if parseResult.port else 80
+        path = parseResult.path if parseResult.path else "/"
+        query = f"?{parseResult.query}" if parseResult.query else ""
+        path += query
+
+        if args:
+            encodedArgs = self.prepareArgsForBody(args)
+
+            # if query params don't exist then add ?
+            if (not query):
+                path += '?'
+
+            path += f'?{encodedArgs}'
+
+        self.connect(parseResult.hostname, port)    
+        requestData = f"GET {path} HTTP/1.1\r\nHost: {parseResult.hostname}\r\nConnection: close\r\nAccept:text/html\r\n\r\n"
+        self.sendall(requestData)
+
+        response = self.recvall(self.socket)
+        code = int(response.split(' ')[1])
+        body = self.getResponseBody(response)
+
+        self.close()
         return HTTPResponse(code, body)
 
     def POST(self, url, args=None):
-        code = 500
-        body = ""
+
+        parseResult = urllib.parse.urlparse(url)
+        port = parseResult.port if parseResult.port else 80
+        path = parseResult.path if parseResult.path else "/"
+        query = f"?{parseResult.query}" if parseResult.query else ""
+
+        path += query
+
+        # get args for body
+        requestBody = ''
+        if (args):
+            requestBody = self.prepareArgsForBody(args)
+
+        self.connect(parseResult.hostname, port)    
+        requestData = f"POST {path} HTTP/1.1\r\nHost: {parseResult.hostname}\r\nContent-type: application/x-www-form-urlencoded\r\nContent-length: {len(requestBody)}\r\n\r\n{requestBody}"
+        self.sendall(requestData)
+
+        response = self.recvall(self.socket)
+        code = int(response.split(' ')[1])
+        body = self.getResponseBody(response)
+
+        self.close()
         return HTTPResponse(code, body)
 
     def command(self, url, command="GET", args=None):
@@ -90,6 +158,9 @@ if __name__ == "__main__":
         help()
         sys.exit(1)
     elif (len(sys.argv) == 3):
-        print(client.command( sys.argv[2], sys.argv[1] ))
+        HTTPresponse = client.command( sys.argv[2], sys.argv[1] )
+        print(HTTPresponse.code, "\n", HTTPresponse.body)
     else:
-        print(client.command( sys.argv[1] ))
+        HTTPresponse = client.command( sys.argv[1] )
+        print(HTTPresponse.code, "\n", HTTPresponse.body)
+
