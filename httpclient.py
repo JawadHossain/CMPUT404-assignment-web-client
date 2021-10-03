@@ -40,15 +40,6 @@ class HTTPClient(object):
         self.socket.connect((host, port))
         return None
 
-    def get_code(self, data):
-        return None
-
-    def get_headers(self,data):
-        return None
-
-    def get_body(self, data):
-        return None
-    
     def sendall(self, data):
         self.socket.sendall(data.encode('utf-8'))
         
@@ -71,7 +62,7 @@ class HTTPClient(object):
         data = data.split("\n")
 
         headerEndIndex = data.index('\r')
-        slice = data[headerEndIndex + 1 : len(data) - 1]
+        slice = data[headerEndIndex + 1 : len(data)]
         return "\n".join(slice)
 
     '''
@@ -135,7 +126,7 @@ class HTTPClient(object):
             requestBody = self.prepareArgsForBody(args)
 
         self.connect(parseResult.hostname, port)    
-        requestData = f"POST {path} HTTP/1.1\r\nHost: {parseResult.hostname}\r\nContent-type: application/x-www-form-urlencoded\r\nContent-length: {len(requestBody)}\r\n\r\n{requestBody}"
+        requestData = f"POST {path} HTTP/1.1\r\nHost: {parseResult.hostname}\r\nContent-type: application/x-www-form-urlencoded\r\nContent-length: {len(requestBody)}\r\n\r\n{requestBody}\r\n"
         self.sendall(requestData)
 
         response = self.recvall(self.socket)
